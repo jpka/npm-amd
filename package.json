@@ -1,0 +1,34 @@
+{
+  "name": "npm-amd",
+  "version": "0.0.1",
+  "description": "Scans installed npm modules, browserifies them if they are not AMD, and produce a path object to be consumed by RequireJS and the like.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node_modules/.bin/mocha",
+    "testWatch": "node_modules/.bin/mocha --watch"
+  },
+  "repository": "git://github.com/jpka/npm-amd.git",
+  "keywords": [
+    "browserify",
+    "amd",
+    "npm",
+    "package"
+  ],
+  "author": {
+    "name": "Juan Pablo Kaniefsky",
+    "email": "jpkaniefsky@gmail.com"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "chai": "~1.6.0",
+    "mocha": "~1.9.0",
+    "backbone": "~1.0.0",
+    "sinon": "~1.7.2"
+  },
+  "dependencies": {
+    "browserify": "~2.13.2",
+    "fs-extra": "~0.6.1",
+    "module-investigator": "~0.1.3",
+    "async": "~0.2.8"
+  }
+}
