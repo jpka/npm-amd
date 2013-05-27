@@ -12,14 +12,16 @@ fn = function(options, cb) {
     if (err) return cb(err);
     dirs.splice(dirs.indexOf(".bin"), 1);
 
-    async.each(dirs, function(name, cb) {
+    async.eachSeries(dirs, function(name, cb) {
       bresolve(name, {filename: module.parent.filename}, function(err, filePath) {
         if (err) return cb(err);
 
         fs.readFile(filePath, "utf8", function(err, fileContents) {
+          var info;
           if (err) return cb(err);
 
-          if (investigate(fileContents).dependencies.amd.length) {
+          info = investigate(fileContents);
+          if (info.dependencies.amd.length || info.uses.indexOf("define") > -1 || info.uses.indexOf("require (AMD)") > -1) {
             paths[name] = filePath;
             return cb();
           } else {
@@ -50,7 +52,7 @@ fn._bundleCommonJS = function(entry, options, cb) {
   delete options.force;
 
   function finish() {
-    fs.writeFile(filePath, "define(function() {" + src + "});", function(err) {
+    fs.writeFile(filePath, src, function(err) {
       cb(err, filePath);
     });
   }
@@ -58,11 +60,12 @@ fn._bundleCommonJS = function(entry, options, cb) {
   fs.mkdirs(fn.storagePath, function(err) {
     var version = fs.readJSONSync(path.join("node_modules", entry, "package.json")).version;
     
-    filePath = path.join(fn.storagePath, entry + "-" + version + "-" + fn._normalizeOptions(options));
+    filePath = path.join(fn.storagePath, entry + "-" + version + "-" + fn._hashObject(options) + ".js");
     if (fs.existsSync(filePath) && !force) {
       return cb(null, filePath);
     }
 
+    options.standalone = entry;
     browserify.on("error", function() {
       cb(err);
       errored = true;
@@ -74,7 +77,7 @@ fn._bundleCommonJS = function(entry, options, cb) {
         errored = true;
 
         console.warn("Warn: " + entry + " could not be browserified, creating dummy");
-        src = "throw(new Error('" + err.message + "'));";
+        src = "define(function() { var error = new Error('" + err.message + "'); return error; });";
         finish();
       })
       .on("data", function(data) {
@@ -87,14 +90,14 @@ fn._bundleCommonJS = function(entry, options, cb) {
   });
 };
 
-fn._normalizeOptions = function(obj) {
+fn._hashObject = function(obj) {
   var normalized = {};
 
   Object.keys(obj).sort().forEach(function(key) {
     normalized[key] = obj[key];
   });
 
-  return JSON.stringify(normalized);
+  return require("md5").digest_s(JSON.stringify(normalized));
 };
 
 module.exports = fn;
