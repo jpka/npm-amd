@@ -155,7 +155,7 @@ describe("NPM-AMD", function() {
 
     it("creates all the files as expected", function() {
       var files = fs.readdirSync(npmAmd.storagePath).map(function(file) {
-        return path.join(npmAmd.storagePath, file);
+        return path.resolve(path.join(npmAmd.storagePath, file));
       });
       Object.keys(pathObj).forEach(function(key) {
         var value = pathObj[key];
@@ -171,7 +171,18 @@ describe("NPM-AMD", function() {
 
     it("bundles the module if it is CommonJS", function() {
       npmAmd._bundleCommonJS.calledWith("cjs").should.be.true;
-      expect(pathObj.cjs).to.include(npmAmd.storagePath);
+      expect(pathObj.cjs).to.include(path.resolve(npmAmd.storagePath));
+    });
+
+    it("can give you the paths relative to a given path", function(done) {
+      this.timeout(10000);
+      npmAmd({from: "test"}, function(err, paths) {
+        if (err) throw err;
+
+        expect(paths.amd).to.equal(path.join("..", "node_modules", "amd", "index-amd.js"));
+        expect(paths.cjs).to.include(path.join("..", npmAmd.storagePath, "cjs"));
+        done();
+      });
     });
   });
 });

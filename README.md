@@ -13,7 +13,19 @@ It does caching via the bundle filename. The same module version with the same b
 require("npm-amd")(options, function(err, paths){});
 ```
 
-options can be browserify options and `force: true`, that disables the caching and rebrowserifies everything
+or just
+
+```
+node_modules/.bin/npm-amd
+```
+
+from the command line
+
+options can be:
+- browserify options
+- `force: true`, that disables the caching and rebrowserifies everything
+- `from: "some/path"`, that resolves all the returned paths relative to that (by default it will resolve to absolute paths).
+
 
 
 # Roadmap

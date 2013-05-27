@@ -6,7 +6,18 @@ investigate = require("module-investigator");
 
 fn = function(options, cb) {
   var paths = {},
+  from = options.from,
   called;
+
+  delete options.from;
+
+  function resolvePath(to) {
+    if (from) {
+      return path.relative(from, to);
+    } else {
+      return path.resolve(to);
+    }
+  }
 
   fs.readdir("node_modules", function(err, dirs) {
     if (err) return cb(err);
@@ -22,13 +33,13 @@ fn = function(options, cb) {
 
           info = investigate(fileContents);
           if (info.dependencies.amd.length || info.uses.indexOf("define") > -1 || info.uses.indexOf("require (AMD)") > -1) {
-            paths[name] = filePath;
+            paths[name] = resolvePath(filePath);
             return cb();
           } else {
             fn._bundleCommonJS(name, options, function(err, filePath) {
               if (err) return cb(err);
 
-              paths[name] = filePath;
+              paths[name] = resolvePath(filePath);
               cb();
             });
           }
@@ -47,9 +58,16 @@ fn._bundleCommonJS = function(entry, options, cb) {
   var browserify = require("browserify")(),
   src = "",
   force = options.force,
+  version = fs.readJSONSync(path.join("node_modules", entry, "package.json")).version,
+  filePath = "",
   errored;
 
   delete options.force;
+
+  filePath = path.join(fn.storagePath, entry + "-" + version + "-" + fn._hashObject(options) + ".js");
+  if (fs.existsSync(filePath) && !force) {
+    return cb(null, filePath);
+  }
 
   function finish() {
     fs.writeFile(filePath, src, function(err) {
@@ -58,12 +76,7 @@ fn._bundleCommonJS = function(entry, options, cb) {
   }
 
   fs.mkdirs(fn.storagePath, function(err) {
-    var version = fs.readJSONSync(path.join("node_modules", entry, "package.json")).version;
-    
-    filePath = path.join(fn.storagePath, entry + "-" + version + "-" + fn._hashObject(options) + ".js");
-    if (fs.existsSync(filePath) && !force) {
-      return cb(null, filePath);
-    }
+    if (err) return cb(err);
 
     options.standalone = entry;
     browserify.on("error", function() {
