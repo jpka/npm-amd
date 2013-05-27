@@ -6,14 +6,11 @@ investigate = require("module-investigator");
 
 fn = function(options, cb) {
   var paths = {},
-  from = options.from,
   called;
 
-  delete options.from;
-
   function resolvePath(to) {
-    if (from) {
-      return path.relative(from, to);
+    if (options.from) {
+      return path.relative(options.from, to);
     } else {
       return path.resolve(to);
     }
@@ -36,7 +33,7 @@ fn = function(options, cb) {
             paths[name] = resolvePath(filePath);
             return cb();
           } else {
-            fn._bundleCommonJS(name, options, function(err, filePath) {
+            fn._bundleCommonJS(name, options.browserify, options.force, function(err, filePath) {
               if (err) return cb(err);
 
               paths[name] = resolvePath(filePath);
@@ -54,15 +51,14 @@ fn = function(options, cb) {
 
 fn.storagePath = "npm_amd_bundles";
 
-fn._bundleCommonJS = function(entry, options, cb) {
+fn._bundleCommonJS = function(entry, options, force, cb) {
   var browserify = require("browserify")(),
   src = "",
-  force = options.force,
   version = fs.readJSONSync(path.join("node_modules", entry, "package.json")).version,
   filePath = "",
   errored;
 
-  delete options.force;
+  options = options || {};
 
   filePath = path.join(fn.storagePath, entry + "-" + version + "-" + fn._hashObject(options) + ".js");
   if (fs.existsSync(filePath) && !force) {

@@ -59,7 +59,7 @@ describe("NPM-AMD", function() {
     }
 
     before(function(done) {
-      npmAmd._bundleCommonJS("cjs", options, function(err, filePath) {
+      npmAmd._bundleCommonJS("cjs", options, false, function(err, filePath) {
         bundlePath = filePath;
         fs.readFile(filePath, "utf8", function(err, contents) {
           expect(err).to.not.exist;
@@ -96,15 +96,14 @@ describe("NPM-AMD", function() {
       this.timeout(4000);
 
       setTimeout(function() {
-        npmAmd._bundleCommonJS("cjs", {insertGlobals: true}, function(err, filePath) {
+        npmAmd._bundleCommonJS("cjs", {insertGlobals: true}, false, function(err, filePath) {
           if (err) throw err;
 
           newStat = fs.statSync(filePath);
           oldStat.mtime.getTime().should.equal(newStat.mtime.getTime());
 
           setTimeout(function() {
-            var options = {insertGlobals: true, force: true};
-            npmAmd._bundleCommonJS("cjs", options, function(err, newFilePath) {
+            npmAmd._bundleCommonJS("cjs", {insertGlobals: true}, true, function(err, newFilePath) {
               expect(newFilePath).to.equal(filePath);
               oldStat.mtime.getTime().should.not.equal(fs.statSync(newFilePath).mtime.getTime());
               done();
@@ -115,7 +114,7 @@ describe("NPM-AMD", function() {
     });
 
     it("saves a dummy modules that returns the error for modules that can't be browserified", function(done) {
-      npmAmd._bundleCommonJS("unbrowserifiable", {}, function(err, filePath) {
+      npmAmd._bundleCommonJS("unbrowserifiable", {}, false, function(err, filePath) {
         if (err) throw err;
 
         requirejs("ub", filePath, function(ub) {
@@ -134,12 +133,14 @@ describe("NPM-AMD", function() {
         return false;
       }
       return true;
-    });
+    }),
+    browserifyOptions = {insertGlobals: true};
 
     before(function(done) {
       this.timeout(10000);
       sinon.spy(npmAmd, "_bundleCommonJS");
-      npmAmd({insertGlobals: true}, function(err, p) {
+      
+      npmAmd({force: true, browserify: browserifyOptions}, function(err, p) {
         if (err) throw err;
         pathObj = p;
         done();
@@ -169,8 +170,8 @@ describe("NPM-AMD", function() {
       expect(pathObj.amd).to.equal(path.resolve(path.join("node_modules", "amd", "index-amd.js")));
     });
 
-    it("bundles the module if it is CommonJS", function() {
-      npmAmd._bundleCommonJS.calledWith("cjs").should.be.true;
+    it("bundles the module if it is CommonJS with the options given", function() {
+      npmAmd._bundleCommonJS.calledWith("cjs", browserifyOptions, true).should.be.true;
       expect(pathObj.cjs).to.include(path.resolve(npmAmd.storagePath));
     });
 
