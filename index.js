@@ -21,7 +21,8 @@ fn = function(options, cb) {
     dirs.splice(dirs.indexOf(".bin"), 1);
 
     async.eachSeries(dirs, function(name, cb) {
-      bresolve(name, {filename: module.parent.filename}, function(err, filePath) {
+      //browser-resolve should have a dirname option so I wouldn't have to lie to it
+      bresolve(name, {filename: path.join(process.cwd(), "index.js")}, function(err, filePath) {
         if (err) return cb(err);
 
         fs.readFile(filePath, "utf8", function(err, fileContents) {
