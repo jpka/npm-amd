@@ -24,6 +24,10 @@ fn = function(options, cb) {
       //browser-resolve should have a dirname option so I wouldn't have to lie to it
       bresolve(name, {filename: path.join(process.cwd(), "index.js")}, function(err, filePath) {
         if (err) return cb(err);
+        if (!filePath) {
+          console.warn("Warn: " + name + " could not be resolved from " + process.cwd() + ", skipping");
+          return cb();
+        }
 
         fs.readFile(filePath, "utf8", function(err, fileContents) {
           var info;

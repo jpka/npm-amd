@@ -1,6 +1,6 @@
 {
   "name": "npm-amd",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Scans installed npm modules, browserifies them if they are not AMD, and produce a path object to be consumed by RequireJS and the like.",
   "main": "index.js",
   "scripts": {
