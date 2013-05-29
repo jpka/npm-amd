@@ -6,14 +6,11 @@ investigate = require("module-investigator");
 
 fn = function(options, cb) {
   var paths = {},
-  resolvePath;
+  stream;
 
-  if (options.from) {
-    resolvePath = function(to) {
-      return path.relative(options.from, to);
-    }
-  } else {
-    resolvePath = path.resolve;
+  if (!cb) {
+    stream = new (require("stream"));
+    stream.readable = true;
   }
 
   fs.readdir("node_modules", function(err, modules) {
@@ -28,87 +25,100 @@ fn = function(options, cb) {
       });
     }
 
-    async.eachSeries(modules, function(name, cb) {
-      //browser-resolve should have a dirname option so I wouldn't have to lie to it
-      bresolve(name, {filename: path.join(process.cwd(), "index.js")}, function(err, filePath) {
+    async.each(modules, function(name, cb) {
+      fn._processModule(name, options, function(err, filePath) {
         if (err) return cb(err);
-        if (!filePath) {
-          console.warn("Warn: " + name + " could not be resolved from " + process.cwd() + ", skipping");
-          return cb();
-        }
-
-        fs.readFile(filePath, "utf8", function(err, fileContents) {
-          var info;
-          if (err) return cb(err);
-
-          info = investigate(fileContents);
-          if (info.dependencies.amd.length || info.uses.indexOf("define") > -1 || info.uses.indexOf("require (AMD)") > -1) {
-            paths[name] = resolvePath(filePath);
-            return cb();
-          } else {
-            fn._bundleCommonJS(name, options.browserifyOptions, options.force, function(err, filePath) {
-              if (err) return cb(err);
-
-              paths[name] = resolvePath(filePath);
-              cb();
-            });
-          }
-        });
+        paths[name] = filePath;
+        if (stream) stream.emit("data", {id: name, path: filePath});
+        cb();
       });
     }, function(err) {
-      if (err) return cb(err);
-      cb(null, paths);
+      if (cb) {
+        if (err) return cb(err);
+        cb(null, paths);
+      } else {
+        stream.emit("end");
+      }
     });
+  });
+
+  return stream;
+};
+
+function bundleCommonJS(name, options, cb) {
+  var errored, src = "";
+
+  require("browserify")(name)
+  .bundle(options)
+  .on("error", function(err) {
+    if (errored) return;
+    errored = true;
+    cb(err);
+  })
+  .on("data", function(data) {
+    src += data;
+  })
+  .once("end", function() {
+    if (errored) return;
+    cb(null, src);
   });
 };
 
-fn.storagePath = "npm_amd_bundles";
+fn._processModule = function(name, options, cb) {
+  var version = fs.readJSONSync(path.join("node_modules", name, "package.json")).version,
+  force = options.force,
+  storagePath = options.storagePath || "npm_amd_bundles",
+  browserifyOptions = options.browserifyOptions || {},
+  filePath = path.join(process.cwd(), storagePath, [name, version, fn._hashObject(browserifyOptions) + ".js"].join("-"));
 
-fn._bundleCommonJS = function(entry, options, force, cb) {
-  var browserify = require("browserify")(),
-  src = "",
-  version = fs.readJSONSync(path.join("node_modules", entry, "package.json")).version,
-  filePath = "",
-  errored;
+  function finish(err) {
+    if (options.from) {
+      filePath = path.relative(options.from, filePath);
+    }
+    cb(err, filePath);
+  }
 
-  options = options || {};
-
-  filePath = path.join(fn.storagePath, entry + "-" + version + "-" + fn._hashObject(options) + ".js");
   if (fs.existsSync(filePath) && !force) {
-    return cb(null, filePath);
+    return finish();
   }
 
-  function finish() {
-    fs.writeFile(filePath, src, function(err) {
-      cb(err, filePath);
+  function writeToFile(src) {
+    fs.mkdirs(storagePath, function(err) {
+      fs.writeFile(filePath, src, finish);
     });
   }
 
-  fs.mkdirs(fn.storagePath, function(err) {
-    if (err) return cb(err);
+  function dumpError(error) {
+    writeToFile("define(function() { return new Error('" + error + "'); });");
+  }
 
-    options.standalone = entry;
-    browserify.on("error", function() {
-      cb(err);
-      errored = true;
+  //browser-resolve should have a dirname option so I wouldn't have to lie to it
+  bresolve(name, {filename: path.join(process.cwd(), "index.js")}, function(err, entryFilePath) {
+    if (err || !entryFilePath) {
+      console.warn("Warning: " + name + " could not be resolved from " + process.cwd() + ", creating dummy");
+      return dumpError(err ? err.message : name + " could not be resolved");
+    }
+
+    fs.readFile(entryFilePath, "utf8", function(err, fileContents) {
+      var info;
+      if (err) return cb(err);
+
+      info = investigate(fileContents);
+      if (info.dependencies.amd.length || info.uses.indexOf("define") > -1 || info.uses.indexOf("require (AMD)") > -1) {
+        filePath = entryFilePath;
+        finish();
+      } else {
+        browserifyOptions.standalone = name;
+        bundleCommonJS(name, browserifyOptions, function(err, src) {
+          if (err) {
+            console.warn("Warning: " + name + " could not be browserified, creating dummy");
+            return dumpError(err.message);
+          }
+
+          writeToFile(src);
+        });
+      }
     });
-    browserify.add(entry);
-    browserify.bundle(options)
-      .on("error", function(err) {
-        if (errored) return;
-        errored = true;
-
-        console.warn("Warn: " + entry + " could not be browserified, creating dummy");
-        src = "define(function() { var error = new Error('" + err.message + "'); return error; });";
-        finish();
-      })
-      .on("data", function(data) {
-        src += data;
-      })
-      .once("end", function() {
-        if (errored) return;
-        finish();
-      });
   });
 };
 

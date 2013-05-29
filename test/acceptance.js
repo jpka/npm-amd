@@ -1,9 +1,8 @@
-var fs = require("fs-extra"),
+var fs = require("fs"),
 path = require("path"),
+npmAmd = require("../"),
 should = require("chai").should(),
-npmAmd = require("../");
-
-require("./setup/");
+u = require("./setup")();
 
 describe("Acceptance", function() {
   var pathObj;
@@ -18,16 +17,11 @@ describe("Acceptance", function() {
     });
   });
 
-  it("all paths point to a real file", function() {
-    var files = fs.readdirSync(npmAmd.storagePath).map(function(file) {
-      return path.resolve(path.join(npmAmd.storagePath, file));
-    });
-    Object.keys(pathObj).forEach(function(key) {
-      var value = pathObj[key];
-      if (value.indexOf(npmAmd.storagePath) > -1) {
-        files.should.contain(value);
-      }
-      fs.existsSync(value).should.be.true;
+  it("should bundle all modules and return paths to actual files", function() {
+    var mappedModules = Object.keys(pathObj);
+    mappedModules.sort().should.deep.equal(u.installedModules);
+    mappedModules.forEach(function(key) {
+      fs.existsSync(pathObj[key]).should.be.true;
     });
   });
 });

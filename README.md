@@ -13,6 +13,23 @@ It does caching via the bundle filename. The same module version with the same b
 require("npm-amd")(options, function(err, paths){});
 ```
 
+which will return the paths object like so:
+```javascript
+{
+  "a": "path/to/a",
+  "b": "path/to/b"
+}
+```
+
+or
+
+```javascript
+var stream = require("npm-amd")(options);
+```
+
+which will emit `{id: "a", path: "path/to/a"}` for each module
+(this comes in handy to process each entry as it comes in, taking into account that browserifying takes it's time)
+
 or just
 
 ```
@@ -30,3 +47,5 @@ options can be:
 - `from: "some/path"`, that resolves all the returned paths relative to that (by default it will resolve to absolute paths).
 
 - `match: [/* minimatch patterns */]`, that makes use of [minimatch](https://github.com/isaacs/minimatch) to filter the installed node modules before processing them. This can be used to exclude certain modules (with the use of the negative operator, i.e: `"!grunt-*"`) or to only process a few select ones or both. Take into consideration the patterns will be applied in the order in which they are given.
+
+- `storagePath: some/path`, that specifies a destination for bundled modules, defaults to `npm_amd_bundles`

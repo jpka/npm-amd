@@ -1,6 +1,6 @@
 {
   "name": "npm-amd",
-  "version": "0.3.5",
+  "version": "0.4.6",
   "description": "Scans installed npm modules, browserifies them if they are not AMD, and produce a path object to be consumed by RequireJS and the like.",
   "main": "index.js",
   "scripts": {
@@ -25,7 +25,6 @@
   "devDependencies": {
     "chai": "~1.6.0",
     "mocha": "~1.9.0",
-    "sinon": "~1.7.2",
     "requirejs": "~2.1.6"
   },
   "dependencies": {
