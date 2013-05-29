@@ -6,21 +6,29 @@ investigate = require("module-investigator");
 
 fn = function(options, cb) {
   var paths = {},
-  called;
+  resolvePath;
 
-  function resolvePath(to) {
-    if (options.from) {
+  if (options.from) {
+    resolvePath = function(to) {
       return path.relative(options.from, to);
-    } else {
-      return path.resolve(to);
     }
+  } else {
+    resolvePath = path.resolve;
   }
 
-  fs.readdir("node_modules", function(err, dirs) {
+  fs.readdir("node_modules", function(err, modules) {
+    var match = options.match;
     if (err) return cb(err);
-    dirs.splice(dirs.indexOf(".bin"), 1);
+    modules.splice(modules.indexOf(".bin"), 1);
 
-    async.eachSeries(dirs, function(name, cb) {
+    if (match) {
+      match = typeof match === "string" ? [match] : match;
+      match.forEach(function(pattern) {
+        modules = modules.filter(require("minimatch").filter(pattern));
+      });
+    }
+
+    async.eachSeries(modules, function(name, cb) {
       //browser-resolve should have a dirname option so I wouldn't have to lie to it
       bresolve(name, {filename: path.join(process.cwd(), "index.js")}, function(err, filePath) {
         if (err) return cb(err);
@@ -38,7 +46,7 @@ fn = function(options, cb) {
             paths[name] = resolvePath(filePath);
             return cb();
           } else {
-            fn._bundleCommonJS(name, options.browserify, options.force, function(err, filePath) {
+            fn._bundleCommonJS(name, options.browserifyOptions, options.force, function(err, filePath) {
               if (err) return cb(err);
 
               paths[name] = resolvePath(filePath);
