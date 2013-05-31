@@ -72,9 +72,9 @@ describe("Module Processing", function() {
     });
   });
 
-  it("returns relative paths if given a from option", function(done) {
-    fn("_cjs_", {from: "a/b"}, function(err, filePath) {
-      filePath.should.include(path.join("..", ".."));
+  it("applies map function to the path", function(done) {
+    fn("_cjs_", {map: function(p) { return p[0]; }}, function(err, filePath) {
+      filePath.length.should.equal(1);
       done();
     });
   });

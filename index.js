@@ -2,66 +2,63 @@ var fs = require("fs-extra"),
 path = require("path"),
 async = require("async"),
 bresolve = require("browser-resolve"),
-investigate = require("module-investigator");
+investigate = require("module-investigator"),
+sigmund = require("sigmund"),
+readableStream = require("stream").Readable,
+fn;
 
-fn = function(options, cb) {
-  var paths = {},
-  stream;
+//node v0.8 support
+if (!readableStream) {
+  readableStream = require("readable-stream");
+}
 
-  if (!cb) {
-    stream = new (require("stream"));
-    stream.readable = true;
+module.exports = fn = function(options, callback) {
+  var modules = fs.readdirSync("node_modules").filter(function(name) {
+    return name !== ".bin";
+  }),
+  match = options.match,
+  stream = new readableStream({objectMode: true}),
+  running = false,
+  paths;
+
+  if (match) {
+    match = typeof match === "string" ? [match] : match;
+    match.forEach(function(pattern) {
+      modules = modules.filter(require("minimatch").filter(pattern));
+    });
   }
 
-  fs.readdir("node_modules", function(err, modules) {
-    var match = options.match;
-    if (err) return cb(err);
-    modules.splice(modules.indexOf(".bin"), 1);
-
-    if (match) {
-      match = typeof match === "string" ? [match] : match;
-      match.forEach(function(pattern) {
-        modules = modules.filter(require("minimatch").filter(pattern));
-      });
-    }
-
+  stream._read = function() {
+    if (running) return;
+    running = true;
     async.each(modules, function(name, cb) {
       fn._processModule(name, options, function(err, filePath) {
-        if (err) return cb(err);
-        paths[name] = filePath;
-        if (stream) stream.emit("data", {id: name, path: filePath});
-        cb();
+        if (err) stream.emit("error", err);
+        if (stream.push([name, filePath])) {
+          cb();
+        } else {
+          cb(true);
+        }
       });
-    }, function(err) {
-      if (cb) {
-        if (err) return cb(err);
-        cb(null, paths);
-      } else {
-        stream.emit("end");
-      }
+    }, function() {
+      stream.push(null);
+      running = false;
     });
-  });
+  };
+
+  if (callback) {
+    paths = {};
+    stream
+    .on("error", callback)
+    .on("data", function(data) {
+      paths[data[0]] = data[1];
+    })
+    .on("end", function() {
+      callback(null, paths);
+    });
+  }
 
   return stream;
-};
-
-function bundleCommonJS(name, options, cb) {
-  var errored, src = "";
-
-  require("browserify")(name)
-  .bundle(options)
-  .on("error", function(err) {
-    if (errored) return;
-    errored = true;
-    cb(err);
-  })
-  .on("data", function(data) {
-    src += data;
-  })
-  .once("end", function() {
-    if (errored) return;
-    cb(null, src);
-  });
 };
 
 fn._processModule = function(name, options, cb) {
@@ -72,8 +69,8 @@ fn._processModule = function(name, options, cb) {
   filePath = path.join(process.cwd(), storagePath, [name, version, fn._hashObject(browserifyOptions) + ".js"].join("-"));
 
   function finish(err) {
-    if (options.from) {
-      filePath = path.relative(options.from, filePath);
+    if (options.map) {
+      filePath = options.map(filePath);
     }
     cb(err, filePath);
   }
@@ -109,8 +106,10 @@ fn._processModule = function(name, options, cb) {
         finish();
       } else {
         browserifyOptions.standalone = name;
-        bundleCommonJS(name, browserifyOptions, function(err, src) {
+        require("browserify")(name).bundle(browserifyOptions, function(err, src) {
+          if (this.errored) return;
           if (err) {
+            this.errored = true;
             console.warn("Warning: " + name + " could not be browserified, creating dummy");
             return dumpError(err.message);
           }
@@ -129,7 +128,5 @@ fn._hashObject = function(obj) {
     normalized[key] = obj[key];
   });
 
-  return require("md5").digest_s(JSON.stringify(normalized));
+  return sigmund(normalized);
 };
-
-module.exports = fn;

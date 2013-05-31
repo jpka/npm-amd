@@ -5,16 +5,7 @@ module.exports = function() {
   fixturePath = path.join("test", "fixtures"),
   dummyNodeModules = fs.readdirSync(fixturePath);
 
-  before(function(done) {
-    async.each(dummyNodeModules, function(dir, cb) {
-      fs.copy(path.join(fixturePath, dir), path.join("node_modules", dir), function(err) {
-        if (err) throw err;
-        cb();
-      });
-    }, done);
-  });
-
-  after(function(done) {
+  function clean(done) {
     var dirs = dummyNodeModules.map(function(name) {
       return path.join("node_modules", name);
     }).concat(["npm_amd_bundles", "foo"]);
@@ -24,14 +15,26 @@ module.exports = function() {
         cb();
       });
     }, done);
+  }
+
+  before(function(done) {
+    clean(function() {
+      async.each(dummyNodeModules, function(dir, cb) {
+        fs.copy(path.join(fixturePath, dir), path.join("node_modules", dir), function(err) {
+          if (err) throw err;
+          cb();
+        });
+      }, done);
+    });
   });
 
+  after(clean);
 
   return {
     fixturePath: fixturePath,
     dummyNodeModules: dummyNodeModules,
     installedModules: fs.readdirSync("node_modules").filter(function(name) {
       return name !== ".bin";
-    }).sort()
+    }).concat(dummyNodeModules).sort()
   };
 }

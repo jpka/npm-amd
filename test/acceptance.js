@@ -5,23 +5,36 @@ should = require("chai").should(),
 u = require("./setup")();
 
 describe("Acceptance", function() {
-  var pathObj;
+  this.timeout(10000);
 
-  before(function(done) {
-    this.timeout(10000);
+  it("should work as expected when streaming", function(done) {
+    var names = [],
+    files = [];
 
-    npmAmd({}, function(err, p) {
-      if (err) throw err;
-      pathObj = p;
+    npmAmd({}).on("readable", function() {
+      var data;
+      while (data = this.read()) {
+        names.push(data[0]);
+        files.push(data[1]);
+      }
+    }).on("end", function() {
+      names.sort().should.deep.equal(u.installedModules);
+      files.forEach(function(file) {
+        fs.existsSync(file).should.be.true;
+      });
       done();
     });
   });
 
-  it("should bundle all modules and return paths to actual files", function() {
-    var mappedModules = Object.keys(pathObj);
-    mappedModules.sort().should.deep.equal(u.installedModules);
-    mappedModules.forEach(function(key) {
-      fs.existsSync(pathObj[key]).should.be.true;
+  it("should work as expected with a callback", function(done) {
+    npmAmd({}, function(err, pathObj) {
+      var mappedModules = Object.keys(pathObj);
+
+      mappedModules.sort().should.deep.equal(u.installedModules);
+      mappedModules.forEach(function(key) {
+        fs.existsSync(pathObj[key]).should.be.true;
+      });
+      done();
     });
   });
 });

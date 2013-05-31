@@ -18,7 +18,7 @@ describe("Path object generation", function() {
 
   it("maps every installed node module when it is not told otherwise", function(done) {
     npmAmd({}, function(err, pathObj) {
-      u.installedModules.should.deep.equal(Object.keys(pathObj).sort());
+      Object.keys(pathObj).sort().should.deep.equal(u.installedModules);
       done();
     });
   });
@@ -30,24 +30,28 @@ describe("Path object generation", function() {
     patterns = ["_*_", "!_unbrowserifiable_"];
 
     npmAmd({match: patterns}, function(err, pathObj) {
-      Object.keys(pathObj).sort().should.deep.equal(dummyNodeModules);
+      Object.keys(pathObj).sort().should.deep.equal(dummyNodeModules.sort());
       done();
     });
   });
 
-  it("works as a stream as well", function(done) {
+  it("streams well with new stream api", function(done) {
     var streamPaths = {};
 
-    npmAmd({})
-      .on("data", function(data) {
-        data.should.have.keys(["id", "path"]);
-        streamPaths[data.id] = data.path;
+    var stream = npmAmd({});
+    setTimeout(function() {
+      stream
+      .on("readable", function() {
+        while (data = this.read()) {
+          data.should.be.an("Array");
+          data.length.should.equal(2);
+          streamPaths[data[0]] = data[1];
+        }
       })
       .on("end", function() {
-        npmAmd({}, function(err, cbPaths) {
-          streamPaths.should.deep.equal(cbPaths);
-          done();
-        });
+        Object.keys(streamPaths).sort().should.deep.equal(u.installedModules);
+        done();
       });
+    }, 1000);
   });
 });
